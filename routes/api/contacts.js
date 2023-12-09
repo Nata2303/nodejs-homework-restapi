@@ -1,7 +1,9 @@
 const express = require("express");
 const contactControllers = require("../../controllers/contactControllers");
+const userControllers = require("../../controllers/userControllers");
 const authMiddleware = require("../../middleware/authMiddleware");
 const path = require("path");
+const { validateEmail } = require("../../middleware/validationMiddleware");
 
 const router = express.Router();
 
@@ -41,6 +43,26 @@ router.get("/:contactId", authMiddleware, async (req, res) => {
   }
 });
 
+router.get("/verify/:verificationToken", async (req, res) => {
+  try {
+    const { verificationToken } = req.params;
+    const user = await userControllers.verifyUser(verificationToken);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (user.verify) {
+      return res.status(400).json({ message: "User already verified" });
+    }
+
+    res.status(200).json({ message: "Verification successful" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
 router.post("/", authMiddleware, async (req, res) => {
   try {
     const newContact = await contactControllers.create(req.body, req.user._id);
@@ -50,6 +72,24 @@ router.post("/", authMiddleware, async (req, res) => {
     res.status(500).json({ message: "Internal Server Error" });
   }
 });
+
+router.post("/verify", validateEmail, async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    const result = await userControllers.resendVerificationEmail(email);
+
+    if (result.success) {
+      return res.status(200).json({ message: "Verification email sent" });
+    } else {
+      return res.status(400).json({ message: result.error });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
 
 router.put("/:contactId", authMiddleware, async (req, res) => {
   try {
